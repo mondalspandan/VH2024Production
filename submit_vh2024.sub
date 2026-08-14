@@ -1,0 +1,24 @@
+universe = vanilla
+executable = run_vh2024.sh
+should_transfer_files = YES
+transfer_executable = YES
+when_to_transfer_output = ON_EXIT
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+notification = never
+
+GRIDPACK_XROOTD_BASE = root://eoscms.cern.ch:1094//eos/cms/store/group/phys_btag/spmondal/bb_cc_variableM/gridpacks_2024
+OUTPUT_XROOTD_BASE = root://eoscms.cern.ch:1094//eos/cms/store/group/phys_btag/spmondal/bb_cc_variableM/2024
+
+transfer_input_files = x509up_user.pem,cmsDrive_commands_2024.sh,ZHjj.py,custom_btv_overlay.py,$(GRIDPACK_XROOTD_BASE)/$(bb_gridpack),$(GRIDPACK_XROOTD_BASE)/$(cc_gridpack)
+arguments = $(ClusterId) $(ProcId) $(bb_mass) $(cc_mass) 643 $(OUTPUT_XROOTD_BASE)
+
+request_cpus = 1
+request_disk = 30GB
++JobFlavour = "testmatch"
+max_materialize = 250
+
+output = condor_$(ClusterId).$(ProcId).out
+error = condor_$(ClusterId).$(ProcId).err
+log = condor_$(ClusterId).log
+
+queue bb_mass,cc_mass,bb_gridpack,cc_gridpack from jobs_2024.tsv

@@ -1,0 +1,23 @@
+universe = vanilla
+executable = run_vh2024.sh
+should_transfer_files = YES
+transfer_executable = YES
+when_to_transfer_output = ON_EXIT
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+notification = never
+
+GRIDPACK_XROOTD_BASE = root://eoscms.cern.ch:1094//eos/cms/store/group/phys_btag/spmondal/bb_cc_variableM/gridpacks_2024
+OUTPUT_XROOTD_BASE = root://eoscms.cern.ch:1094//eos/cms/store/group/phys_btag/spmondal/bb_cc_variableM/2024/pilot
+
+transfer_input_files = x509up_user.pem,cmsDrive_commands_2024.sh,ZHjj.py,custom_btv_overlay.py,$(GRIDPACK_XROOTD_BASE)/HZJ_el8_amd64_gcc12_CMSSW_14_0_21_HZJ_40.tgz
+arguments = $(ClusterId) $(Process) 40 40 10 $(OUTPUT_XROOTD_BASE)
+
+request_cpus = 1
+request_disk = 30GB
++JobFlavour = "workday"
+
+output = pilot_$(ClusterId).$(Process).out
+error = pilot_$(ClusterId).$(Process).err
+log = pilot_$(ClusterId).log
+
+queue 1

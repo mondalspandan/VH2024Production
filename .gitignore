@@ -1,0 +1,7 @@
+*.out
+*.err
+*.log
+pilot_*
+condor_*
+x509up_user.pem
+__pycache__/
