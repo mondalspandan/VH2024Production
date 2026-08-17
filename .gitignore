@@ -1,7 +1,10 @@
-*.out
-*.err
-*.log
-pilot_*
-condor_*
-x509up_user.pem
+# Local/generated production artifacts
+logs/
+spmondal.cc
+jobs_2024.tsv
 __pycache__/
+*.pyc
+pilot_*.out
+pilot_*.err
+pilot_*.log
+x509up_user.pem
