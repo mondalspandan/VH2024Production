@@ -3,15 +3,23 @@ set -euo pipefail
 
 cluster=${1:?missing cluster}
 process=${2:?missing process}
-bb_mass=${3:?missing BB mass}
-cc_mass=${4:?missing CC mass}
-events=${5:?missing events}
-output_base=${6:?missing output base}
+events=${3:?missing events}
+output_base=${4:?missing output base}
+gridpack_base=${5:?missing gridpack base}
 
 payload_dir=$PWD
+read -r bb_mass cc_mass < <(python3 "$payload_dir/mass_selector.py" "$process")
+echo "Selected mass points: BB MH$bb_mass, CC MH$cc_mass (effective job $((process % 311)))"
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/vh2024.${cluster}.${process}.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 
+export HOME="$scratch/home"
+mkdir -p "$HOME"
+git config --global user.name "Anonymous CMSSW Build"
+git config --global user.email "noreply@cmssw.invalid"
+git config --global user.github anonymous
+
+export CVS_RSH="${CVS_RSH:-ssh}"
 source /cvmfs/cms.cern.ch/cmsset_default.sh
 export X509_USER_PROXY="$scratch/x509up_user.pem"
 cp x509up_user.pem "$X509_USER_PROXY"
@@ -21,6 +29,19 @@ voms-proxy-info -timeleft
 export VH_PAYLOAD_DIR="$payload_dir"
 export VH_GRIDPACK_DIR="$scratch"
 export NCPU=1
+
+linker_libs="$scratch/linker-libs"
+mkdir -p "$linker_libs"
+for library in ssl crypto; do
+    for candidate in /usr/lib64/lib$library.so.* /lib64/lib$library.so.*; do
+        if [ -f "$candidate" ]; then
+            ln -sf "$candidate" "$linker_libs/lib$library.so"
+            break
+        fi
+    done
+done
+export LIBRARY_PATH="$linker_libs${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$linker_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 eos_host=eoscms.cern.ch:1094
 output_path=${output_base#root://$eos_host/}
@@ -54,6 +75,22 @@ copy_with_retry() {
     return 1
 }
 
+fetch_gridpack() {
+    local gridpack=$1
+    local destination="$scratch/$gridpack"
+    [ -s "$destination" ] && return 0
+    local source="${gridpack_base%/}/$gridpack"
+    for attempt in 1 2 3; do
+        if xrdcp -f "$source" "$destination"; then
+            [ -s "$destination" ] && return 0
+        fi
+        rm -f "$destination"
+        [ "$attempt" -lt 3 ] && sleep 30
+    done
+    echo "Failed to fetch gridpack: $source" >&2
+    return 1
+}
+
 run_flavour() {
     local name=$1 flavour=$2 mass=$3
     local workdir="$scratch/$name"
@@ -69,7 +106,7 @@ run_flavour() {
 
     mkdir -p "$workdir"
     local gridpack="HZJ_el8_amd64_gcc12_CMSSW_14_0_21_HZJ_${mass}.tgz"
-    cp "$payload_dir/$gridpack" "$scratch/$gridpack"
+    fetch_gridpack "$gridpack"
     export VH_WORKDIR="$workdir"
     export VH_CMSSW14="$scratch/CMSSW_14_0_21/src"
     export VH_CMSSW15="$scratch/CMSSW_15_0_6/src"
@@ -82,11 +119,14 @@ run_flavour() {
         (cd "$scratch" && scram project CMSSW CMSSW_15_0_6)
         (
             cd "$VH_CMSSW15"
+            eval "$(scram runtime -sh)"
             git cms-init
             git remote remove spandan 2>/dev/null || true
             git remote add spandan https://github.com/mondalspandan/cmssw.git
             git fetch --depth=1 spandan latent-features-cmssw-15-0-6
             git checkout -B latent-features-cmssw-15-0-6 FETCH_HEAD
+            git cms-addpkg PhysicsTools/NanoAOD
+            git cms-addpkg RecoBTag/ONNXRuntime
             scram b -j 1
         )
     fi

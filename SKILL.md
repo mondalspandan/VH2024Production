@@ -4,7 +4,7 @@
 
 This workflow is designed for lxplus Condor. The worker must not `cd` into or
 read mounted AFS/EOS paths. Condor transfers the proxy, small workflow files,
-and the two gridpacks into the job sandbox. The wrapper creates a temporary
+and the small workflow inputs into the job sandbox. The job executable creates a temporary
 worker-local directory, runs all CMSSW stages there, validates the outputs,
 and uses XRootD for the final EOS copies.
 
@@ -14,7 +14,7 @@ The group EOS endpoint is:
 root://eoscms.cern.ch:1094//eos/cms/store/group/phys_btag/spmondal/bb_cc_variableM/
 ```
 
-The gridpack directory was cross-checked from brux with:
+To verify the gridpack directory from lxplus, use:
 
 ```bash
 xrdfs eoscms.cern.ch:1094 ls -l \
@@ -44,10 +44,16 @@ transferred with every job.
 
 ## Current 2024 workflow
 
-Each production job runs both flavours. The current mass sampler assigns one
-BB and one CC mass from the 311-point weighted cycle. The 933-job campaign is
-three repetitions of that cycle. Each flavour receives 643 events, preserving
-the existing approximately 200,000 events per flavour plan.
+Each production job runs both flavours. Its mass selection is copied from
+the Brux `el8_wrapper.sh` `mass_for_job` function. The authoritative
+BB/CC anchor weights are in `mass_weights_2024.tsv`. For every integer
+mass 40--350, the selector performs the same linear interpolation and
+high-mass extrapolation, then applies the same stratified inverse-CDF target
+`(process % 311 + 0.5) * total / 311` separately for BB and CC. Thus
+311, 622, and 933 jobs are exact repetitions of the same 311-job stratified
+sequence, as on Brux. This is intentionally not `random.choice`.
+Each flavour receives 643 events, preserving the existing approximately
+200,000 events per flavour plan.
 
 The stages are unchanged:
 
@@ -127,15 +133,26 @@ the 2024 submit files.
 
 ## Condor and EOS operations
 
-The production submit file requests one CPU and uses `testmatch`, because
-brux history showed completed one-core jobs reaching approximately 37.8 hours.
-The pilot uses `workday` because its event payload is tiny but still installs
-and builds CMSSW.
+The submit files use the native lxplus container selector:
 
-Gridpacks are supplied using per-job `transfer_input_files` entries containing
-group EOS XRootD URLs. Outputs are written locally first, checked for a
-nonzero ROOT file, copied to a temporary EOS name with `xrdcp`, and renamed to
-the final path only after a successful transfer.
+```text
+MY.WantOS = "el8"
+```
+
+This lets Condor run the payload in an EL8 Apptainer/Singularity container
+without wrapping the executable in `cmssw-el8`. The payload still sources
+`/cvmfs/cms.cern.ch/cmsset_default.sh` and initializes each CMSSW workarea
+before using CMSSW tools or `git cms-init`.
+
+The production submit file requests one CPU and uses `testmatch` to allow the
+established payload to run beyond 24 hours. The pilot uses `workday` because
+its event payload is tiny but still installs and builds CMSSW.
+
+Each job selects its BB and CC mass points with `mass_selector.py`, then
+fetches the corresponding gridpacks from group EOS with `xrdcp` into worker
+scratch. Outputs are written locally first, checked for a nonzero ROOT file,
+copied to a temporary EOS name with `xrdcp`, and renamed to the final path only
+after a successful transfer.
 
 Before production, inspect the pilot with:
 

@@ -1,9 +1,10 @@
 # VH2024Production
 
-Self-contained lxplus Condor production for the 2024 ZHbb/ZHcc samples. Jobs
-transfer their two gridpacks into the Condor sandbox, run all CMSSW stages in
-worker-local scratch, and copy validated NanoAOD outputs to group EOS with
-`xrdcp`.
+Self-contained lxplus Condor production for the 2024 ZHbb/ZHcc samples. Each
+job selects its BB/CC masses at runtime with the Brux-compatible stratified
+weight sampler, fetches the corresponding gridpacks from group EOS with
+`xrdcp`, runs all CMSSW stages in worker-local scratch, and copies
+validated NanoAOD outputs back with `xrdcp`.
 
 The gridpacks are currently read from:
 
@@ -39,12 +40,21 @@ before submitting production:
 condor_submit submit_vh2024.sub
 ```
 
-Production queues 933 jobs. Each job runs the BB and CC workflows with 643
-events per flavour and produces both `Nano` and `PFNanoLatent` outputs.
+Production queues 933 jobs by default. Each job runs the BB and CC workflows
+with 643 events per flavour and produces both `Nano` and `PFNanoLatent`
+outputs. To run 311 or 622 jobs instead, change `N_JOBS` in
+`submit_vh2024.sub`. The mass sequence is the Brux sequence repeated
+through `process % 311`, so these campaign sizes preserve the intended
+stratified coverage.
+
+Both submit files request the native lxplus EL8 container with
+`MY.WantOS = "el8"`; no CMSSW container wrapper is needed.
 
 If the EOS locations change, edit `GRIDPACK_XROOTD_BASE` and
-`OUTPUT_XROOTD_BASE` in the submit files. Keep the gridpack basenames and
-subdirectory layout unchanged unless the job manifest is regenerated.
+`OUTPUT_XROOTD_BASE` in the submit files. The authoritative weights are
+in `mass_weights_2024.tsv`; `jobs_2024.tsv` is retained only as a
+legacy validation table and is not transferred to workers or used for job
+queuing.
 
 The worker clones the public latent-feature branch over HTTPS so Condor
 workers do not need GitHub SSH keys:

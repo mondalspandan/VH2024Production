@@ -30,6 +30,7 @@ cp "$VH_PAYLOAD_DIR/ZHjj.py" "$VH_CMSSW14/Configuration/GenProduction/python/ZHj
 
 cd "$VH_CMSSW14"
 eval "$(scram runtime -sh)"
+scram b -j 1
 cd "$VH_WORKDIR"
 
 if ! is_valid_root RAWSIM.root; then
